@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dial Graphing Calculator</title>
+<style>
+  :root{
+    --bg:#080d15; --panel:#0f1723; --line:#233046; --text:#e6edf7; --muted:#8b9bb4;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg);color:var(--text);overflow:hidden;
+  }
+  .app{display:flex;height:100vh;width:100vw}
+  .panel{
+    width:340px;flex:0 0 340px;
+    background:linear-gradient(180deg,#121c2a,#0c131e);
+    border-right:1px solid var(--line);
+    padding:18px;overflow-y:auto;
+    display:flex;flex-direction:column;gap:16px;
+  }
+  h1{font-size:19px;margin:0;letter-spacing:.2px;font-weight:650}
+  .sub{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4}
+  .section{background:#0f1723;border:1px solid var(--line);border-radius:12px;padding:12px}
+  .section-title{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:10px}
+
+  .func-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .func-row:last-child{margin-bottom:0}
+  .color-dot{
+    width:16px;height:16px;border-radius:50%;border:2px solid #0f1723;
+    background:var(--c);box-shadow:0 0 0 1px var(--c);
+    cursor:pointer;flex:0 0 auto;padding:0;
+  }
+  .color-dot.off{background:transparent;box-shadow:0 0 0 1px #55657d}
+  .expr{
+    flex:1;min-width:0;background:#0a111b;border:1px solid #263449;
+    color:#e8f0ff;border-radius:8px;padding:7px 9px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;
+  }
+  .expr:focus{outline:none;border-color:#3b82f6}
+  .icon-btn{
+    width:26px;height:26px;flex:0 0 auto;border-radius:7px;
+    background:#1a2638;border:1px solid #2c3d57;color:#9fb0c9;
+    cursor:pointer;font-size:16px;line-height:1;padding:0;
+  }
+  .icon-btn:hover{background:#263653;color:#fff}
+
+  .examples{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .chip{
+    background:#152136;border:1px solid #2a3b56;color:#9fb6d6;
+    border-radius:20px;padding:4px 9px;font-size:11px;cursor:pointer;
+    font-family:ui-monospace,monospace;
+  }
+  .chip:hover{background:#1e2f4a;color:#dbe8ff;border-color:#3c5578}
+
+  .dials{display:flex;justify-content:space-around;gap:6px;padding:4px 0 2px}
+  .dial-unit{display:flex;flex-direction:column;align-items:center;gap:7px;width:122px}
+  .dial{
+    --rot:0deg;--arc:135deg;--accent:#38bdf8;
+    position:relative;width:104px;height:104px;border-radius:50%;
+    background:conic-gradient(from 225deg,
+      var(--accent) 0deg var(--arc),
+      #2a374c var(--arc) 270deg,
+      transparent 270deg 360deg);
+    display:grid;place-items:center;cursor:grab;touch-action:none;user-select:none;
+    outline:none;
+  }
+  .dial.y{--accent:#f472b6}
+  .dial:active,.dial.dragging{cursor:grabbing}
+  .dial:focus-visible{box-shadow:0 0 0 2px #3b82f6}
+  .dial-inner{
+    position:relative;width:80px;height:80px;border-radius:50%;
+    background:radial-gradient(circle at 35% 28%,#2c3b53,#131c29 72%);
+    border:1px solid #3a4a63;
+    box-shadow:inset 0 2px 6px rgba(255,255,255,.06),0 4px 12px rgba(0,0,0,.5);
+  }
+  .dial-inner::after{
+    content:'';position:absolute;inset:7px;border-radius:50%;
+    background:linear-gradient(to bottom,var(--accent) 0 11px,transparent 11px);
+    transform:rotate(var(--rot));
+  }
+  .dial-hub{
+    position:absolute;width:9px;height:9px;border-radius:50%;
+    background:var(--accent);box-shadow:0 0 8px var(--accent);z-index:2;
+  }
+  .dial-label{font-size:12px;color:var(--muted)}
+  .dial-value{font-family:ui-monospace,monospace;font-size:13px;color:var(--accent);font-weight:600}
+
+  .readout{
+    font-family:ui-monospace,monospace;font-size:11px;color:#a9bcd6;
+    line-height:1.6;word-break:break-word;
+  }
+  .btnrow{display:flex;gap:8px}
+  .btn{
+    flex:1;background:#1b2940;border:1px solid #2f425f;color:#dbe7f9;
+    border-radius:8px;padding:8px 10px;font-size:12px;cursor:pointer;
+  }
+  .btn:hover{background:#243556}
+  .btn.primary{background:#1d4ed8;border-color:#3b82f6}
+  .btn.primary:hover{background:#2563eb}
+  #error{color:#fca5a5;font-size:11px;min-height:14px;line-height:1.4}
+
+  .stage{position:relative;flex:1;min-width:0;background:var(--bg)}
+  canvas{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
+  canvas:active{cursor:grabbing}
+  #tooltip{
+    position:absolute;pointer-events:none;display:none;
+    background:rgba(10,17,28,.94);border:1px solid #33455f;border-radius:6px;
+    padding:4px 7px;font:11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    color:#cfe0ff;transform:translate(12px,-30px);white-space:nowrap;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="panel">
+    <div>
+      <h1>Graphing Calculator</h1>
+      <div class="sub">Turn the dials to rescale the X and Y axes. Drag the graph to pan, scroll to zoom, or drag a dial directly.</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Functions</div>
+      <div id="funcList"></div>
+      <div class="examples">
+        <button class="chip" data-expr="sin(x)">sin(x)</button>
+        <button class="chip" data-expr="cos(x)">cos(x)</button>
+        <button class="chip" data-expr="tan(x)">tan(x)</button>
+        <button class="chip" data-expr="x^2">x^2</button>
+        <button class="chip" data-expr="exp(-x^2/2)">gaussian</button>
+        <button class="chip" data-expr="ln(abs(x))">ln|x|</button>
+        <button class="chip" data-expr="sin(3x)/x">sinc</button>
+      </div>
+      <div style="margin-top:10px"><button class="btn" id="addFunc">+ Add function</button></div>
+      <div id="error" style="margin-top:8px"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Axis dials</div>
+      <div class="dials">
+        <div class="dial-unit">
+          <div class="dial x" id="dialX" tabindex="0" role="slider" aria-label="X axis scale">
+            <div class="dial-inner"></div><div class="dial-hub"></div>
+          </div>
+          <div class="dial-label">X axis</div>
+          <div class="dial-value" id="xValue">±10</div>
+        </div>
+        <div class="dial-unit">
+          <div class="dial y" id="dialY" tabindex="0" role="slider" aria-label="Y axis scale">
+            <div class="dial-inner"></div><div class="dial-hub"></div>
+          </div>
+          <div class="dial-label">Y axis</div>
+          <div class="dial-value" id="yValue">±10</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">View</div>
+      <div class="readout" id="viewInfo"></div>
+      <div class="btnrow" style="margin-top:10px">
+        <button class="btn" id="zoomIn">Zoom in</button>
+        <button class="btn" id="zoomOut">Zoom out</button>
+        <button class="btn primary" id="resetBtn">Reset</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="stage" id="stage">
+    <canvas id="plot"></canvas>
+    <div id="tooltip"></div>
+  </main>
+</div>
+
+<script>
+// ---------- math expression parser ----------
+const ARITY = {
+  sin:1,cos:1,tan:1,asin:1,acos:1,atan:1,sinh:1,cosh:1,tanh:1,
+  sqrt:1,abs:1,log:1,ln:1,exp:1,floor:1,ceil:1,round:1,sign:1,
+  min:2,max:2,pow:2,atan2:2
+};
+const IMPL = {
+  sin:Math.sin,cos:Math.cos,tan:Math.tan,asin:Math.asin,acos:Math.acos,atan:Math.atan,
+  sinh:Math.sinh,cosh:Math.cosh,tanh:Math.tanh,
+  sqrt:Math.sqrt,abs:Math.abs,log:Math.log10,ln:Math.log,exp:Math.exp,
+  floor:Math.floor,ceil:Math.ceil,round:Math.round,sign:Math.sign,
+  min:Math.min,max:Math.max,pow:Math.pow,atan2:Math.atan2
+};
+
+function tokenize(src){
+  const raw=[];let i=0;
+  while(i<src.length){
+    const c=src[i];
+    if(/\s/.test(c)){i++;continue;}
+    if(/[0-9.]/.test(c)){
+      let j=i,dots=0;
+      while(j<src.length&&/[0-9.]/.test(src[j])){if(src[j]==='.')dots++;j++;}
+      if(dots>1)throw new Error('invalid number');
+      raw.push({type:'num',value:parseFloat(src.slice(i,j))});i=j;continue;
+    }
+    if(/[a-zA-Z_]/.test(c)){
+      let j=i;
+      while(j<src.length&&/[a-zA-Z_0-9]/.test(src[j]))j++;
+      raw.push({type:'id',value:src.slice(i,j).toLowerCase()});i=j;continue;
+    }
+    if('+-*/^%,()'.includes(c)){raw.push({type:'op',value:c});i++;continue;}
+    throw new Error('unexpected character "'+c+'"');
+  }
+  // insert implicit multiplication
+  const out=[];
+  for(let k=0;k<raw.length;k++){
+    const p=raw[k-1],t=raw[k];
+    const isOpen=t.type==='op'&&t.value==='(';
+    const isClose=p&&p.type==='op'&&p.value===')';
+    const need =
+      (p&&p.type==='num'&&(t.type==='id'||isOpen)) ||
+      (isClose&&(t.type==='num'||t.type==='id'||isOpen)) ||
+      (p&&p.type==='id'&&!(p.value in ARITY)&&(isOpen||t.type==='num'||t.type==='id'));
+    if(need)out.push({type:'op',value:'*'});
+    out.push(t);
+  }
+  return out;
+}
+
+class Parser{
+  constructor(tokens){this.t=tokens;this.i=0;}
+  peek(){return this.t[this.i];}
+  take(){return this.t[this.i++];}
+  expect(v){const x=this.peek();if(!x||x.value!==v)throw new Error('expected "'+v+'"');this.i++;return x;}
+  parse(){const f=this.expr();if(this.peek())throw new Error('unexpected "'+this.peek().value+'"');return f;}
+  expr(){
+    let left=this.term();
+    while(this.peek()&&(this.peek().value==='+'||this.peek().value==='-')){
+      const op=this.take().value,r=this.term(),l=left;
+      left=op==='+'?x=>l(x)+r(x):x=>l(x)-r(x);
+    }
+    return left;
+  }
+  term(){
+    let left=this.unary();
+    while(this.peek()&&['*','/','%'].includes(this.peek().value)){
+      const op=this.take().value,r=this.unary(),l=left;
+      left=op==='*'?x=>l(x)*r(x):op==='/'?x=>l(x)/r(x):x=>l(x)%r(x);
+    }
+    return left;
+  }
+  unary(){
+    if(this.peek()&&(this.peek().value==='+'||this.peek().value==='-')){
+      const op=this.take().value,v=this.unary();
+      return op==='-'?x=>-v(x):v;
+    }
+    return this.power();
+  }
+  power(){
+    const base=this.primary();
+    if(this.peek()&&this.peek().value==='^'){
+      this.take();const e=this.unary();
+      return x=>Math.pow(base(x),e(x));
+    }
+    return base;
+  }
+  primary(){
+    const t=this.take();
+    if(!t)throw new Error('incomplete expression');
+    if(t.type==='num'){const n=t.value;return ()=>n;}
+    if(t.type==='id'){
+      if(t.value==='x')return x=>x;
+      if(t.value==='pi')return ()=>Math.PI;
+      if(t.value==='e')return ()=>Math.E;
+      if(t.value==='tau')return ()=>2*Math.PI;
+      if(t.value in ARITY){
+        this.expect('(');
+        const args=[this.expr()];
+        while(this.peek()&&this.peek().value===','){this.take();args.push(this.expr());}
+        this.expect(')');
+        if(args.length!==ARITY[t.value])throw new Error(t.value+'() needs '+ARITY[t.value]+' arg(s)');
+        const [a,b]=args,fn=IMPL[t.value];
+        return b===undefined?x=>fn(a(x)):x=>fn(a(x),b(x));
+      }
+      throw new Error('unknown name "'+t.value+'"');
+    }
+    if(t.type==='op'&&t.value==='('){const v=this.expr();this.expect(')');return v;}
+    throw new Error('unexpected "'+t.value+'"');
+  }
+}
+function compile(src){return new Parser(tokenize(src)).parse();}
+
+// ---------- state ----------
+const COLORS=['#4ade80','#60a5fa','#f472b6','#fbbf24','#a78bfa'];
+const state={
+  cx:0,cy:0,xHalf:10,yHalf:10,
+  funcs:[
+    {expr:'sin(x)',color:COLORS[0],visible:true,compiled:null},
+    {expr:'0.04*x^2 - 3',color:COLORS[1],visible:true,compiled:null}
+  ]
+};
+const MIN_HALF=0.2,MAX_HALF=500;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+function fmt(v){
+  if(!isFinite(v))return '—';
+  const a=Math.abs(v);
+  if(a!==0&&(a>=1e4||a<1e-3))return v.toExponential(2);
+  const d=a>=100?0:a>=10?1:2;
+  return v.toFixed(d).replace(/(\.\d*?)0+$/,'$1').replace(/\.$/,'');
+}
+function niceStep(raw){
+  const p=Math.pow(10,Math.floor(Math.log10(raw)));
+  const f=raw/p;
+  return (f<1.5?1:f<3?2:f<7?5:10)*p;
+}
+
+// ---------- canvas ----------
+const canvas=document.getElementById('plot');
+const ctx=canvas.getContext('2d');
+let W=0,H=0;
+function resize(){
+  const r=canvas.parentElement.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  W=Math.max(1,Math.floor(r.width));H=Math.max(1,Math.floor(r.height));
+  canvas.width=W*dpr;canvas.height=H*dpr;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+const sx=x=>(x-state.cx)/state.xHalf*(W/2)+W/2;
+const sy=y=>H/2-(y-state.cy)/state.yHalf*(H/2);
+const ix=px=>state.cx+(px-W/2)/(W/2)*state.xHalf;
+const iy=py=>state.cy-(py-H/2)/(H/2)*state.yHalf;
+
+function drawGrid(){
+  const xs=niceStep(state.xHalf/5),ys=niceStep(state.yHalf/5);
+  const xmin=state.cx-state.xHalf,xmax=state.cx+state.xHalf;
+  const ymin=state.cy-state.yHalf,ymax=state.cy+state.yHalf;
+  const eps=1e-7;
+
+  ctx.lineWidth=1;ctx.strokeStyle='#172235';ctx.beginPath();
+  let fx=Math.ceil(xmin/xs)*xs;
+  for(let v=fx;v<=xmax+xs*eps;v+=xs){const px=Math.round(sx(v))+.5;ctx.moveTo(px,0);ctx.lineTo(px,H);}
+  let fy=Math.ceil(ymin/ys)*ys;
+  for(let v=fy;v<=ymax+ys*eps;v+=ys){const py=Math.round(sy(v))+.5;ctx.moveTo(0,py);ctx.lineTo(W,py);}
+  ctx.stroke();
+
+  ctx.strokeStyle='#415372';ctx.lineWidth=1.4;ctx.beginPath();
+  if(0>=xmin&&0<=xmax){const ax=Math.round(sx(0))+.5;ctx.moveTo(ax,0);ctx.lineTo(ax,H);}
+  if(0>=ymin&&0<=ymax){const ay=Math.round(sy(0))+.5;ctx.moveTo(0,ay);ctx.lineTo(W,ay);}
+  ctx.stroke();
+
+  ctx.fillStyle='#8296b3';ctx.font='11px ui-monospace,monospace';
+  const labelY=(0>=ymin&&0<=ymax)?clamp(sy(0)-6,14,H-6):H-6;
+  ctx.textAlign='center';ctx.textBaseline='bottom';
+  for(let v=fx;v<=xmax+xs*eps;v+=xs){
+    if(Math.abs(v)<xs*1e-6)continue;
+    const px=sx(v);if(px<18||px>W-18)continue;
+    ctx.fillText(fmt(v),px,labelY);
+  }
+  const labelX=(0>=xmin&&0<=xmax)?Math.min(W-6,sx(0)+8):6;
+  ctx.textAlign='left';ctx.textBaseline='middle';
+  for(let v=fy;v<=ymax+ys*eps;v+=ys){
+    if(Math.abs(v)<ys*1e-6)continue;
+    const py=sy(v);if(py<12||py>H-10)continue;
+    ctx.fillText(fmt(v),labelX,py);
+  }
+  if(0>=xmin&&0<=xmax&&0>=ymin&&0<=ymax)ctx.fillText('0',sx(0)+6,sy(0)+11);
+}
+function drawFunctions(){
+  for(const f of state.funcs){
+    if(!f.visible||!f.compiled)continue;
+    ctx.save();
+    ctx.strokeStyle=f.color;ctx.lineWidth=2.1;
+    ctx.shadowColor=f.color;ctx.shadowBlur=7;
+    ctx.beginPath();
+    let started=false,prev=null;
+    for(let px=0;px<=W;px++){
+      let y;
+      try{y=f.compiled(ix(px));}catch(e){y=NaN;}
+      if(!isFinite(y)){started=false;prev=null;continue;}
+      const py=clamp(sy(y),-2e4,2e4);
+      if(!started||(prev!==null&&Math.abs(py-prev)>H*0.6)){ctx.moveTo(px,py);started=true;}
+      else ctx.lineTo(px,py);
+      prev=py;
+    }
+    ctx.stroke();ctx.restore();
+  }
+}
+const mouse={inside:false,px:0,py:0,panning:false,lastX:0,lastY:0};
+function drawCrosshair(){
+  if(!mouse.inside)return;
+  ctx.save();ctx.setLineDash([4,4]);ctx.strokeStyle='rgba(150,183,225,.32)';
+  ctx.lineWidth=1;ctx.beginPath();
+  ctx.moveTo(mouse.px,0);ctx.lineTo(mouse.px,H);
+  ctx.moveTo(0,mouse.py);ctx.lineTo(W,mouse.py);
+  ctx.stroke();ctx.restore();
+  const tip=document.getElementById('tooltip');
+  tip.style.display='block';tip.style.left=mouse.px+'px';tip.style.top=mouse.py+'px';
+  tip.textContent='x '+fmt(ix(mouse.px))+'   y '+fmt(iy(mouse.py));
+}
+function draw(){
+  if(!W||!H)return;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#080d15';ctx.fillRect(0,0,W,H);
+  drawGrid();drawFunctions();drawCrosshair();
+}
+
+// ---------- function list UI ----------
+function escapeAttr(s){return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function renderFuncs(){
+  const list=document.getElementById('funcList');list.innerHTML='';
+  state.funcs.forEach((f,i)=>{
+    const row=document.createElement('div');row.className='func-row';
+    row.innerHTML=
+      '<button class="color-dot '+(f.visible?'':'off')+'" style="--c:'+f.color+'" title="Show / hide"></button>'+
+      '<input class="expr" spellcheck="false" value="'+escapeAttr(f.expr)+'" aria-label="Function '+(i+1)+'">'+
+      '<button class="icon-btn remove" title="Remove">&times;</button>';
+    row.querySelector('.color-dot').addEventListener('click',()=>{f.visible=!f.visible;renderFuncs();draw();});
+    const inp=row.querySelector('.expr');
+    inp.addEventListener('input',()=>{f.expr=inp.value;compileAll();draw();});
+    row.querySelector('.remove').addEventListener('click',()=>{
+      if(state.funcs.length===1){state.funcs[0].expr='';}
+      else state.funcs.splice(i,1);
+      renderFuncs();compileAll();draw();
+    });
+    list.appendChild(row);
+  });
+}
+function compileAll(){
+  let err='';
+  for(const f of state.funcs){
+    try{f.compiled=f.expr.trim()?compile(f.expr):null;}
+    catch(e){f.compiled=null;if(!err)err=f.expr+': '+e.message;}
+  }
+  document.getElementById('error').textContent=err;
+}
+document.getElementById('addFunc').addEventListener('click',()=>{
+  if(state.funcs.length>=COLORS.length)return;
+  state.funcs.push({expr:'',color:COLORS[state.funcs.length],visible:true,compiled:null});
+  renderFuncs();draw();
+});
+document.querySelectorAll('.chip').forEach(chip=>{
+  chip.addEventListener('click',()=>{
+    state.funcs[0].expr=chip.dataset.expr;
+    state.funcs[0].visible=true;
+    renderFuncs();compileAll();draw();
+  });
+});
+
+// ---------- dials ----------
+const halfToT=h=>Math.log(h/MIN_HALF)/Math.log(MAX_HALF/MIN_HALF);
+const tToHalf=t=>MIN_HALF*Math.pow(MAX_HALF/MIN_HALF,t);
+const dialUpdates=[];
+function updateDials(){dialUpdates.forEach(fn=>fn());}
+function setupDial(id,valueId,key){
+  const el=document.getElementById(id),out=document.getElementById(valueId);
+  function update(){
+    const t=clamp(halfToT(state[key]),0,1);
+    el.style.setProperty('--arc',(t*270)+'deg');
+    el.style.setProperty('--rot',(-135+t*270)+'deg');
+    out.textContent='±'+fmt(state[key]);
+    el.setAttribute('aria-valuenow',fmt(state[key]));
+  }
+  function setFromPointer(e){
+    const r=el.getBoundingClientRect();
+    const dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2);
+    if(Math.hypot(dx,dy)<8)return; // ignore the dead center (angle is undefined there)
+    const deg=Math.atan2(dx,-dy)*180/Math.PI;
+    const t=clamp((clamp(deg,-135,135)+135)/270,0,1);
+    state[key]=tToHalf(t);update();updateReadout();draw();
+  }
+  let dragging=false;
+  el.addEventListener('pointerdown',e=>{el.focus();dragging=true;el.classList.add('dragging');el.setPointerCapture(e.pointerId);setFromPointer(e);e.preventDefault();});
+  el.addEventListener('pointermove',e=>{if(dragging)setFromPointer(e);});
+  const stop=e=>{dragging=false;el.classList.remove('dragging');try{el.releasePointerCapture(e.pointerId);}catch(_){}};
+  el.addEventListener('pointerup',stop);el.addEventListener('pointercancel',stop);
+  el.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const t=clamp(halfToT(state[key])+(e.deltaY<0?0.025:-0.025),0,1);
+    state[key]=tToHalf(t);update();updateReadout();draw();
+  },{passive:false});
+  el.addEventListener('keydown',e=>{
+    if(!['ArrowUp','ArrowRight','ArrowDown','ArrowLeft','Home','End'].includes(e.key))return;
+    e.preventDefault();
+    let t=halfToT(state[key]);
+    if(e.key==='ArrowUp'||e.key==='ArrowRight')t+=0.02;
+    else if(e.key==='ArrowDown'||e.key==='ArrowLeft')t-=0.02;
+    else if(e.key==='Home')t=0;else t=1;
+    state[key]=tToHalf(clamp(t,0,1));update();updateReadout();draw();
+  });
+  dialUpdates.push(update);
+}
+setupDial('dialX','xValue','xHalf');
+setupDial('dialY','yValue','yHalf');
+
+function updateReadout(){
+  document.getElementById('viewInfo').textContent=
+    'X  ['+fmt(state.cx-state.xHalf)+' , '+fmt(state.cx+state.xHalf)+']\n'+
+    'Y  ['+fmt(state.cy-state.yHalf)+' , '+fmt(state.cy+state.yHalf)+']';
+}
+document.getElementById('viewInfo').style.whiteSpace='pre-line';
+
+// ---------- view controls ----------
+function zoomBoth(factor){
+  state.xHalf=clamp(state.xHalf*factor,MIN_HALF,MAX_HALF);
+  state.yHalf=clamp(state.yHalf*factor,MIN_HALF,MAX_HALF);
+  updateDials();updateReadout();draw();
+}
+document.getElementById('zoomIn').addEventListener('click',()=>zoomBoth(0.75));
+document.getElementById('zoomOut').addEventListener('click',()=>zoomBoth(1/0.75));
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  state.cx=0;state.cy=0;state.xHalf=10;state.yHalf=10;
+  updateDials();updateReadout();draw();
+});
+
+function pos(e){
+  const r=canvas.getBoundingClientRect();
+  return {px:e.clientX-r.left,py:e.clientY-r.top};
+}
+canvas.addEventListener('pointermove',e=>{
+  const p=pos(e);mouse.px=p.px;mouse.py=p.py;mouse.inside=true;
+  if(mouse.panning){
+    state.cx-=(p.px-mouse.lastX)/(W/2)*state.xHalf;
+    state.cy+=(p.py-mouse.lastY)/(H/2)*state.yHalf;
+    mouse.lastX=p.px;mouse.lastY=p.py;
+    updateReadout();
+  }
+  draw();
+});
+canvas.addEventListener('pointerdown',e=>{
+  const p=pos(e);mouse.px=p.px;mouse.py=p.py;mouse.inside=true;
+  mouse.panning=true;mouse.lastX=p.px;mouse.lastY=p.py;
+  canvas.setPointerCapture(e.pointerId);
+});
+const stopPan=e=>{mouse.panning=false;try{canvas.releasePointerCapture(e.pointerId);}catch(_){}};
+canvas.addEventListener('pointerup',stopPan);canvas.addEventListener('pointercancel',stopPan);
+canvas.addEventListener('pointerleave',()=>{
+  mouse.inside=false;document.getElementById('tooltip').style.display='none';draw();
+});
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const p=pos(e),factor=Math.exp(e.deltaY*0.0014);
+  const mx=ix(p.px),my=iy(p.py);
+  state.xHalf=clamp(state.xHalf*factor,MIN_HALF,MAX_HALF);
+  state.yHalf=clamp(state.yHalf*factor,MIN_HALF,MAX_HALF);
+  state.cx=mx-(p.px-W/2)/(W/2)*state.xHalf;
+  state.cy=my+(p.py-H/2)/(H/2)*state.yHalf;
+  updateDials();updateReadout();draw();
+},{passive:false});
+
+// ---------- boot ----------
+compileAll();renderFuncs();updateDials();updateReadout();
+window.addEventListener('resize',resize);
+resize();
+</script>
+</body>
+</html>
